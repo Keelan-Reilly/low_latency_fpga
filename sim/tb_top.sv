@@ -1,92 +1,71 @@
+// sim/tb_top.sv
+// Top-level testbench: drives rx_byte from sample.mem and captures uart_tx outputs.
 `timescale 1ns/1ps
+module tb_top;
+    logic clk, rst_n;
+    logic [7:0] rx_byte;
+    logic       rx_valid;
 
-// Top‐level SystemVerilog testbench for your FPGA HFT feed handler.
-// Instantiate eth_rx → parser → trading_logic → (optional) uart_tx.
-// Exposes a simple handshake to the Verilator C++ harness via plusargs.
+    // DUT connections
+    logic [7:0] payload_byte;
+    logic       payload_valid, payload_ready;
+    logic       parser_ready;
+    logic [7:0] msg_type;
+    logic       field_valid;
+    logic [63:0] order_id;
+    logic [31:0] price, volume;
+    logic       decision_valid;
+    logic [7:0] decision_type;
+    logic [31:0] decision_data;
+    logic       uart_busy, uart_tx;
 
-module tb_top (
-  // Driven by Verilator main.cpp:
-  input  logic        clk,
-  input  logic        rst_n,
-  input  logic        in_valid,
-  input  logic [7:0]  in_byte,
-  input  logic        payload_ready,
-  // Observed by Verilator main.cpp:
-  output logic        decision_valid,
-  output logic [7:0]  decision_msg_type,
-  output logic [15:0] decision_price,
-  output logic [15:0] decision_size
-);
+    // Cycle counter
+    logic [31:0] cycle_cnt;
 
-  // ------------------------------------------------------------------
-  // Internal nets between pipeline stages
-  // ------------------------------------------------------------------
-  // eth_rx → parser
-  logic        eth_out_valid;
-  logic [7:0]  eth_out_byte;
+    // Instantiate pipeline_regs, eth_rx, parser, trading_logic, uart_tx
+    eth_rx      u_eth(.clk(clk), .rst_n(rst_n),
+                      .rx_byte(rx_byte), .rx_valid(rx_valid),
+                      .payload_byte(payload_byte),
+                      .payload_valid(payload_valid),
+                      .payload_ready(payload_ready));
+    parser      u_pr(.clk(clk), .rst_n(rst_n),
+                      .in_byte(payload_byte), .in_valid(payload_valid), .in_ready(parser_ready),
+                      .msg_type(msg_type), .field_valid(field_valid),
+                      .order_id(order_id), .price(price), .volume(volume));
+    trading_logic u_tl(.clk(clk), .rst_n(rst_n),
+                      .field_valid(field_valid), .msg_type(msg_type),
+                      .order_id(order_id), .price(price), .volume(volume),
+                      .decision_valid(decision_valid), .decision_type(decision_type),
+                      .d_order_id(), .d_price(decision_data), .d_volume());
+    uart_tx     u_ut(.clk(clk), .rst_n(rst_n),
+                      .data_in(decision_data), .data_valid(decision_valid),
+                      .tx_line(uart_tx), .busy(uart_busy));
 
-  // parser → trading_logic
-  logic        parser_out_valid;
-  logic [7:0]  parser_msg_type;
-  logic [15:0] parser_price;
-  logic [15:0] parser_size;
+    initial begin
+        $dumpfile("vlt_dump.vcd");
+        $dumpvars(0, tb_top);
+        // Load sample.mem
+        $readmemh("../messages/sample.mem", mem);
+        rst_n = 0; clk = 0;
+        #100 rst_n = 1;
+        // Drive bytes
+        for (integer i = 0; i < $size(mem); i++) begin
+            @(posedge clk);
+            rx_valid = 1;
+            rx_byte  = mem[i];
+        end
+        @(posedge clk) rx_valid = 0;
+        // Wait some cycles for UART
+        repeat(1000) @(posedge clk);
+        $finish;
+    end
 
-  // trading_logic → (logged as decision_*)
-  logic        logic_out_valid;
-  logic [7:0]  logic_msg_type;
-  logic [15:0] logic_price;
-  logic [15:0] logic_size;
+    initial clk = 0;
+    always #5 clk = ~clk;  // 100 MHz
 
-  // ------------------------------------------------------------------
-  // Instantiate Ethernet RX
-  // ------------------------------------------------------------------
-  eth_rx eth_rx_i (
-    .clk        (clk),
-    .rst_n      (rst_n),
-    .in_valid   (in_valid),
-    .in_byte    (in_byte),
-    .out_ready  (payload_ready),
-    .out_valid  (eth_out_valid),
-    .out_byte   (eth_out_byte)
-  );
-
-  // ------------------------------------------------------------------
-  // Instantiate Parser FSM
-  // ------------------------------------------------------------------
-  parser parser_i (
-    .clk        (clk),
-    .rst_n      (rst_n),
-    .in_valid   (eth_out_valid),
-    .in_byte    (eth_out_byte),
-    .out_ready  ( /* unused: always ready in this TB */ 1'b1 ),
-    .out_valid  (parser_out_valid),
-    .msg_type   (parser_msg_type),
-    .price      (parser_price),
-    .size       (parser_size)
-  );
-
-  // ------------------------------------------------------------------
-  // Instantiate Trading Logic
-  // ------------------------------------------------------------------
-  trading_logic logic_i (
-    .clk        (clk),
-    .rst_n      (rst_n),
-    .in_valid   (parser_out_valid),
-    .msg_type   (parser_msg_type),
-    .price      (parser_price),
-    .size       (parser_size),
-    .out_valid  (logic_out_valid),
-    .out_msg_type(logic_msg_type),
-    .out_price  (logic_price),
-    .out_size   (logic_size)
-  );
-
-  // ------------------------------------------------------------------
-  // Tie TB outputs to the final stage
-  // ------------------------------------------------------------------
-  assign decision_valid     = logic_out_valid;
-  assign decision_msg_type  = logic_msg_type;
-  assign decision_price     = logic_price;
-  assign decision_size      = logic_size;
+    always_ff @(posedge clk) begin
+        if (!rst_n) cycle_cnt <= 0;
+        else          cycle_cnt <= cycle_cnt + 1;
+    end
 
 endmodule

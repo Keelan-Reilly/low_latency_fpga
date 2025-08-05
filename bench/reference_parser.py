@@ -1,46 +1,37 @@
+# bench/reference_parser.py
 #!/usr/bin/env python3
 """
-reference_parser.py
-Reads messages/sample.mem, skips preamble+MAC header, parses our toy messages,
-and applies a simple trading rule: on msg_type==2 (TRADE) && price < threshold.
-Prints “timestamp: TRADE price=… size=…”
+Reference parser for ITCH messages.
+Reads a binary stream of ITCH messages:
+  - 2-byte big-endian length
+  - 1-byte message type
+  - payload
+Prints parsed TRADE messages as:
+  TRADE order_id=<id> price=<price> volume=<volume>
+Ignores other message types.
 """
-
+import struct
 import sys
 
-def read_bytes(path):
-    with open(path) as f:
-        for line in f:
-            tok = line.strip()
-            if tok:
-                yield int(tok, 16)
+def parse_itch(stream):
+    while True:
+        header = stream.read(3)
+        if len(header) < 3:
+            break
+        length, mtype = struct.unpack('>HB', header)
+        payload = stream.read(length)
+        if len(payload) < length:
+            break
+        if mtype == ord('T'):  # Trade message
+            order_id, price, volume = struct.unpack('>QII', payload[:16])
+            print(f"TRADE order_id={order_id} price={price} volume={volume}")
+        else:
+            # Skip unknown types
+            print(f"SKIP type={chr(mtype)} length={length}")
 
-def main():
+if __name__ == "__main__":
     if len(sys.argv) != 2:
-        print("Usage: python bench/reference_parser.py messages/sample.mem")
+        print("Usage: reference_parser.py <binary_file>")
         sys.exit(1)
-
-    mem_path = sys.argv[1]
-    it = iter(read_bytes(mem_path))
-
-    # Skip 7×0x55 + 0xD5 SFD
-    for _ in range(8):
-        next(it)
-    # Skip dest MAC (6), src MAC (6), ethertype (2)
-    for _ in range(14):
-        next(it)
-
-    threshold = 105
-    timestamp = 0
-
-    for byte in it:
-        msg_type = byte
-        price     = (next(it) << 8) | next(it)
-        size      = (next(it) << 8) | next(it)
-        timestamp += 1
-
-        if msg_type == 2 and price < threshold:
-            print(f"{timestamp}: TRADE price={price} size={size}")
-
-if __name__ == '__main__':
-    main()
+    with open(sys.argv[1], 'rb') as f:
+        parse_itch(f)

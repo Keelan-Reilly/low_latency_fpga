@@ -34,7 +34,7 @@ We focus on ITCH for low-latency, using fixed-length binary formats.
 	•	Key Logic:
 	•	FSM to detect preamble (IDLE → PREAMBLE → SFD → LOAD_HEADER).
 	•	MAC address compare, drop non-matching frames.
-	•	CRC32 checking (optional for basic sim).
+	•	CRC32 checking.
 
 2.2 parser.sv
 	•	Function: FSM-based decoding of ITCH messages from byte stream.
@@ -53,7 +53,7 @@ We focus on ITCH for low-latency, using fixed-length binary formats.
 	•	Outputs: decision_valid, decision_type, decision payload.
 
 2.4 uart_tx.sv
-	•	Function: Serializes decision payload over a UART link.
+	•	Function: Serialises decision payload over a UART link.
 	•	Interfaces:
 	•	Inputs: clk, rst_n, data_in[31:0], data_valid
 	•	Outputs: tx_line, busy
@@ -126,10 +126,7 @@ Record latency distributions by logging multiple events and computing min/median
 
 ⸻
 
-7. Future Extensions
-	•	Ethernet TX Path: Full frame assembly with CRC.
-	•	Flow Control: FIFO depth reporting and backpressure on RX.
-	•	CRC Checking: Implement CRC32 in hardware to drop corrupted frames.
+7. Extensions
 	•	Limit Order Book: Expand trading logic to maintain book levels.
 	•	Multi-Channel Support: Scale to 10G/40G serial inputs, wider data buses.
 

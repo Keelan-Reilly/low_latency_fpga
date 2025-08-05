@@ -1,87 +1,48 @@
-#include <verilated.h>
-#include <verilated_vcd_c.h>
-#include "Vtb_top.h"             // From verilator --top-module tb_top
-#include <iostream>
+// sim/main.cpp
+// Verilator C++ harness: instantiates DUT, drives rx_byte, captures uart_tx into output_capture.txt
+#include "Vtb_top.h"
+#include "verilated.h"
+#include "verilated_vcd_c.h"
 #include <vector>
-#include <string>
 #include <fstream>
+#include "file_reader.cpp"
 
-// Forward declare our helper
-std::vector<uint8_t> read_memfile(const std::string &path);
-
-static vluint64_t main_time = 0;
-double sc_time_stamp() { return main_time; }
-
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
     Verilated::commandArgs(argc, argv);
-    Verilated::traceEverOn(true);
+    Vtb_top* top = new Vtb_top;
+    VerilatedVcdC* tfp = new VerilatedVcdC;
+    top->trace(tfp, 99);
+    tfp->open("vlt_dump.vcd");
 
-    // Instantiate DUT
-    Vtb_top *tb = new Vtb_top;
-
-    // VCD trace setup
-    VerilatedVcdC *tfp = new VerilatedVcdC;
-    tb->trace(tfp, 99);
-    tfp->open("sim/vlt_dump.vcd");
-
-    // +PACKET_FILE=messages/sample.mem
-    const char *memfile = Verilated::commandArgsPlusMatch("PACKET_FILE=");
-    if (!memfile) {
-        std::cerr << "ERROR: missing +PACKET_FILE=<path>\n";
-        return 1;
-    }
-    auto packet_bytes = read_memfile(memfile);
-
-    // Initialize inputs
-    tb->rst_n         = 0;
-    tb->clk           = 0;
-    tb->in_valid      = 0;
-    tb->in_byte       = 0;
-    tb->payload_ready = 1;  // pipeline_regs.sv ready signal
-
-    // Release reset after 10 cycles
-    for (int i = 0; i < 10; i++) {
-        tb->clk = 0; tb->eval(); tfp->dump(main_time++);
-        tb->clk = 1; tb->eval(); tfp->dump(main_time++);
-    }
-    tb->rst_n = 1;
-
-    // Open output capture
+    auto mem = load_mem("messages/sample.mem");
     std::ofstream out("sim/output_capture.txt");
 
-    // Main sim loop (enough cycles to send all bytes + some slack)
-    size_t idx = 0;
-    size_t max_cycles = packet_bytes.size() * 2 + 100;
-    for (size_t cycle = 0; cycle < max_cycles && !Verilated::gotFinish(); cycle++) {
-        // Clock low
-        tb->clk = 0;
-        tb->eval();
-        tfp->dump(main_time++);
+    // initialize
+    top->clk = 0;
+    top->rst_n = 0;
+    for (int i = 0; i < 2; i++, top->clk = !top->clk) {
+        top->eval();
+        tfp->dump(i);
+    }
+    top->rst_n = 1;
 
-        // Clock high & drive inputs
-        tb->clk = 1;
-        if (idx < packet_bytes.size()) {
-            tb->in_valid = 1;
-            tb->in_byte  = packet_bytes[idx++];
-        } else {
-            tb->in_valid = 0;
-        }
-        tb->eval();
-        tfp->dump(main_time++);
-
-        // Capture trading decisions
-        if (tb->decision_valid) {
-            out << main_time
-                << ": ORDER id=0x" << std::hex << tb->decision_order_id
-                << " price="    << std::dec << tb->decision_price
-                << " size="     << tb->decision_size
-                << "\n";
-        }
+    // drive bytes
+    for (size_t i = 0; i < mem.size(); i++) {
+        top->rx_valid = 1;
+        top->rx_byte  = mem[i];
+        top->clk = 0; top->eval(); tfp->dump(2*i+0);
+        top->clk = 1; top->eval(); tfp->dump(2*i+1);
+        out << (int)top->uart_tx << "\n";
+    }
+    // flush
+    for (int i = 0; i < 100; i++) {
+        top->clk = 0; top->eval(); tfp->dump(mem.size()*2 + i*2);
+        top->clk = 1; top->eval(); tfp->dump(mem.size()*2 + i*2+1);
     }
 
-    // Tear down
-    tfp->close();
-    delete tb;
     out.close();
+    tfp->close();
+    delete top;
+    delete tfp;
     return 0;
 }

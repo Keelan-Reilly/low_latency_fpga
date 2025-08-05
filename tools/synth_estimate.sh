@@ -1,14 +1,13 @@
+# tools/synth_estimate.sh
 #!/usr/bin/env bash
-set -euo pipefail
+set -e
 
-# Go to project root so paths are correct
-cd "$(dirname "$0")"/..
-
-# Read all your RTL, synthesize to a generic gate netlist,
-# then print out a resource usage summary.
-yosys -p "\
-  read_verilog hdl/*.sv;         \
-  synth_ice40 -top tb_top;       \
-  abc -g gate;                   \
-  stat                          \
+# Synthesis with Yosys (ICE40 example)
+yosys -p "
+    read_verilog ../hdl/*.sv
+    proc; opt; fsm; opt
+    synth_ice40 -top eth_rx -json synth_eth_rx.json
+    stat
 "
+
+echo "Synthesis estimates written to synth_eth_rx.json"
