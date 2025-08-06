@@ -9,6 +9,24 @@
 Vtb_top::Vtb_top(VerilatedContext* _vcontextp__, const char* _vcname__)
     : VerilatedModel{*_vcontextp__}
     , vlSymsp{new Vtb_top__Syms(contextp(), _vcname__, this)}
+    , clk{vlSymsp->TOP.clk}
+    , rst_n{vlSymsp->TOP.rst_n}
+    , rx_byte{vlSymsp->TOP.rx_byte}
+    , rx_valid{vlSymsp->TOP.rx_valid}
+    , uart_tx{vlSymsp->TOP.uart_tx}
+    , payload_valid{vlSymsp->TOP.payload_valid}
+    , payload_byte{vlSymsp->TOP.payload_byte}
+    , field_valid{vlSymsp->TOP.field_valid}
+    , msg_type{vlSymsp->TOP.msg_type}
+    , decision_valid{vlSymsp->TOP.decision_valid}
+    , price{vlSymsp->TOP.price}
+    , volume{vlSymsp->TOP.volume}
+    , t_ingress{vlSymsp->TOP.t_ingress}
+    , t_parser{vlSymsp->TOP.t_parser}
+    , t_logic{vlSymsp->TOP.t_logic}
+    , t_decision{vlSymsp->TOP.t_decision}
+    , cycle_cnt{vlSymsp->TOP.cycle_cnt}
+    , order_id{vlSymsp->TOP.order_id}
     , rootp{&(vlSymsp->TOP)}
 {
     // Register model with the context
@@ -60,9 +78,12 @@ void Vtb_top::eval_step() {
 
 //============================================================
 // Events and timing
-bool Vtb_top::eventsPending() { return !vlSymsp->TOP.__VdlySched.empty(); }
+bool Vtb_top::eventsPending() { return false; }
 
-uint64_t Vtb_top::nextTimeSlot() { return vlSymsp->TOP.__VdlySched.nextTimeSlot(); }
+uint64_t Vtb_top::nextTimeSlot() {
+    VL_FATAL_MT(__FILE__, __LINE__, "", "No delays in the design");
+    return 0;
+}
 
 //============================================================
 // Utilities

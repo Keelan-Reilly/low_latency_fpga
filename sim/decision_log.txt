@@ -1,0 +1,2 @@
+TRADE @46 (ingress@45, parser@44, logic@0) order_id=1 price=10000 volume=1000
+LATENCY: total=1 cycles

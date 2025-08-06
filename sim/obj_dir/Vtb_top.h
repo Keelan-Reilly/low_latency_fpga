@@ -28,6 +28,24 @@ class alignas(VL_CACHE_LINE_BYTES) Vtb_top VL_NOT_FINAL : public VerilatedModel 
     // PORTS
     // The application code writes and reads these signals to
     // propagate new values into/out from the Verilated model.
+    VL_IN8(&clk,0,0);
+    VL_IN8(&rst_n,0,0);
+    VL_IN8(&rx_byte,7,0);
+    VL_IN8(&rx_valid,0,0);
+    VL_OUT8(&uart_tx,0,0);
+    VL_OUT8(&payload_valid,0,0);
+    VL_OUT8(&payload_byte,7,0);
+    VL_OUT8(&field_valid,0,0);
+    VL_OUT8(&msg_type,7,0);
+    VL_OUT8(&decision_valid,0,0);
+    VL_OUT(&price,31,0);
+    VL_OUT(&volume,31,0);
+    VL_OUT(&t_ingress,31,0);
+    VL_OUT(&t_parser,31,0);
+    VL_OUT(&t_logic,31,0);
+    VL_OUT(&t_decision,31,0);
+    VL_OUT(&cycle_cnt,31,0);
+    VL_OUT64(&order_id,63,0);
 
     // CELLS
     // Public to allow access to /* verilator public */ items.

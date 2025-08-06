@@ -16,7 +16,7 @@ ETH_TYPE     = b'\x08\x00'  # IPv4
 def make_itch_trade(order_id, price, volume):
     # 2-byte length, 1-byte type, then fields
     return struct.pack('>HBQII',
-                       16,               # length of the fields section
+                       17,               # (1B type + 8B ID + 4B price + 4B volume)
                        ord('T'),         # type 'T'
                        order_id,
                        price,
