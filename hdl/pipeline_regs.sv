@@ -1,8 +1,9 @@
 // hdl/pipeline_regs.sv
-// Pipeline registers between stages and timestamp tagging.
+// Pipeline registers between RX→Parser, Parser→Logic, Logic→TX
 module pipeline_regs (
     input  logic        clk,
     input  logic        rst_n,
+
     // RX→Parser
     input  logic [7:0]  rx2p_in,
     input  logic        rx2p_valid,
@@ -10,9 +11,12 @@ module pipeline_regs (
     output logic [7:0]  rx2p_out,
     output logic        rx2p_out_valid,
 
-    // Parser→Logic
+    // Parser→Logic (now with correct inputs)
     input  logic [7:0]  p2l_type,
     input  logic        p2l_valid,
+    input  logic [63:0] p2l_order_id_i,
+    input  logic [31:0] p2l_price_i,
+    input  logic [31:0] p2l_volume_i,
     output logic        p2l_ready,
     output logic [7:0]  p2l_type_out,
     output logic [63:0] p2l_order_id,
@@ -23,9 +27,7 @@ module pipeline_regs (
     // Logic→TX
     input  logic [7:0]  l2t_type,
     input  logic        l2t_valid,
-    input  logic [63:0] l2t_order_id,
-    input  logic [31:0] l2t_price,
-    input  logic [31:0] l2t_volume,
+    input  logic [31:0] l2t_data_i,
     output logic        l2t_ready,
     output logic [7:0]  l2t_type_out,
     output logic [31:0] l2t_data,
@@ -43,6 +45,7 @@ module pipeline_regs (
     always_ff @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             rx2p_reg_valid <= 0;
+            t_ingress      <= 0;
         end else if (rx2p_valid && !rx2p_reg_valid) begin
             rx2p_reg       <= rx2p_in;
             rx2p_reg_valid <= 1;
@@ -65,20 +68,20 @@ module pipeline_regs (
             p2l_reg_valid <= 0;
         else if (p2l_valid && !p2l_reg_valid) begin
             p2l_type_r      <= p2l_type;
-            p2l_order_id_r  <= order_id;
-            p2l_price_r     <= price;
-            p2l_volume_r    <= volume;
+            p2l_order_id_r  <= p2l_order_id_i;
+            p2l_price_r     <= p2l_price_i;
+            p2l_volume_r    <= p2l_volume_i;
             p2l_reg_valid   <= 1;
         end else if (p2l_ready) begin
             p2l_reg_valid <= 0;
         end
     end
-    assign p2l_type_out   = p2l_type_r;
-    assign p2l_order_id   = p2l_order_id_r;
-    assign p2l_price      = p2l_price_r;
-    assign p2l_volume     = p2l_volume_r;
-    assign p2l_out_valid  = p2l_reg_valid;
-    assign p2l_ready      = !p2l_reg_valid;
+    assign p2l_type_out  = p2l_type_r;
+    assign p2l_order_id  = p2l_order_id_r;
+    assign p2l_price     = p2l_price_r;
+    assign p2l_volume    = p2l_volume_r;
+    assign p2l_out_valid = p2l_reg_valid;
+    assign p2l_ready     = !p2l_reg_valid;
 
     // Logic→TX regs
     logic [7:0]  l2t_type_r;
@@ -89,7 +92,7 @@ module pipeline_regs (
             l2t_reg_valid <= 0;
         else if (l2t_valid && !l2t_reg_valid) begin
             l2t_type_r      <= l2t_type;
-            l2t_data_r      <= l2t_price; // pack as needed
+            l2t_data_r      <= l2t_data_i;
             l2t_reg_valid   <= 1;
             t_decision      <= cycle_cnt;
         end else if (l2t_ready) begin
